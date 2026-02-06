@@ -43,16 +43,18 @@ struct DevicesView: View {
     }
     
     func FilterCountAll() -> Int {
+        guard let mc = mc else { return 0 }
         var r:Int = 0
-        for dev:Device in mc!.devices {
+        for dev:Device in mc.devices {
             if (CheckFilter(device:dev)) { r += 1 }
         }
         return r
     }
     
     func FilterCount(meshid:String) -> Int {
+        guard let mc = mc else { return 0 }
         var r:Int = 0
-        for dev:Device in mc!.devices {
+        for dev:Device in mc.devices {
             if ((meshid == dev.meshid) && (CheckFilter(device:dev))) { r += 1 }
         }
         return r
@@ -80,37 +82,51 @@ struct DevicesView: View {
             VStack(spacing: 0) {
                 TabView(selection: $selectedTab) {
                     VStack(spacing: 0) {
-                        if (mc!.devices.count == 0) {
-                            Text("No devices").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else if (FilterCountAll() == 0) {
-                            Text("No filtered devices").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            List() {
-                                ForEach(mc!.deviceGroups, id: \.id) { deviceGroup in
-                                    if (FilterCount(meshid:deviceGroup.id) > 0) {
-                                        Text(deviceGroup.name).foregroundColor(Color("MainTextColor"))
-                                    }
-                                    ForEach(mc!.devices, id: \.id) { device in
-                                        if ((device.meshid == deviceGroup.id) && CheckFilter(device:device)) {
-                                            HStack() {
-                                                Image("Device\(device.icon)").opacity(((device.conn & 1) != 0) ? 1 : 0.3).saturation(((device.conn & 1) != 0) ? 1 : 0)
-                                                VStack(alignment: .leading) {
-                                                    Text(device.name)
-                                                    Text(getStateString(device:device))
-                                                }.frame(maxWidth: .infinity, alignment: .leading)
-                                                if ((device.conn & 1) != 0) {
-                                                    Button("Add map...", action: { globalSelectedDevice = device; showAddMapModal = true })
-                                                }
-                                            }.padding(.horizontal, 5).background(Color("MainItemColor")).cornerRadius(4).contextMenu() {
-                                                if ((device.conn & 1) != 0) {
-                                                    Button("Add map...", action: { globalSelectedDevice = device; showAddMapModal = true })
-                                                    Button("Add relay map...", action: { globalSelectedDevice = device; showAddRelayMapModal = true })
+                        if let mc = mc, mc.devices.count > 0 {
+                            if (FilterCountAll() == 0) {
+                                Text("No filtered devices").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else {
+                                List() {
+                                    ForEach(mc.deviceGroups, id: \.id) { deviceGroup in
+                                        if (FilterCount(meshid:deviceGroup.id) > 0) {
+                                            Text(deviceGroup.name).foregroundColor(Color("MainTextColor"))
+                                        }
+                                        ForEach(mc.devices, id: \.id) { device in
+                                            if ((device.meshid == deviceGroup.id) && CheckFilter(device:device)) {
+                                                HStack() {
+                                                    Image("Device\(device.icon)").opacity(((device.conn & 1) != 0) ? 1 : 0.3).saturation(((device.conn & 1) != 0) ? 1 : 0)
+                                                    VStack(alignment: .leading) {
+                                                        Text(device.name)
+                                                        Text(getStateString(device:device))
+                                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                                    if ((device.conn & 1) != 0) {
+                                                        Button("Add map...") { [weak device] in
+                                                            guard let device = device else { return }
+                                                            globalSelectedDevice = device
+                                                            showAddMapModal = true
+                                                        }
+                                                    }
+                                                }.padding(.horizontal, 5).background(Color("MainItemColor")).cornerRadius(4).contextMenu() {
+                                                    if ((device.conn & 1) != 0) {
+                                                        Button("Add map...") { [weak device] in
+                                                            guard let device = device else { return }
+                                                            globalSelectedDevice = device
+                                                            showAddMapModal = true
+                                                        }
+                                                        Button("Add relay map...") { [weak device] in
+                                                            guard let device = device else { return }
+                                                            globalSelectedDevice = device
+                                                            showAddRelayMapModal = true
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        } else {
+                            Text("No devices").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                         HStack {
                             TextField("Filter", text: $deviceFilter).frame(width: 160).foregroundColor(Color("MainTextColor")).onExitCommand(perform: {
@@ -127,11 +143,9 @@ struct DevicesView: View {
                         Text("Devices")
                     }.tag(Tab.devices)
                     VStack(spacing: 0) {
-                        if (mc!.portMaps.count == 0) {
-                            Text("No mappings").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
+                        if let mc = mc, mc.portMaps.count > 0 {
                             List() {
-                                ForEach(mc!.portMaps, id: \.id) { map in
+                                ForEach(mc.portMaps, id: \.id) { map in
                                     HStack() {
                                         Image("Device\(map.device.icon)")
                                         VStack(alignment: .leading) {
@@ -139,29 +153,53 @@ struct DevicesView: View {
                                             Text(map.getStateStr())
                                         }.frame(maxWidth: .infinity, alignment: .leading)
                                         if (map.usage == "HTTP") {
-                                            Button("HTTP", action: { openURL(url:"http://127.0.0.1:\(map.localPort)") })
+                                            Button("HTTP") { [weak map] in
+                                                guard let map = map else { return }
+                                                openURL(url:"http://127.0.0.1:\(map.localPort)")
+                                            }
                                         } else if (map.usage == "HTTPS") {
-                                            Button("HTTPS", action: { openURL(url:"https://127.0.0.1:\(map.localPort)") })
+                                            Button("HTTPS") { [weak map] in
+                                                guard let map = map else { return }
+                                                openURL(url:"https://127.0.0.1:\(map.localPort)")
+                                            }
                                         } else if (map.usage == "SSH") {
-                                            Button("SSH", action: { showSshUserModal = true; }).sheet(isPresented: $showSshUserModal) {
+                                            Button("SSH") {
+                                                showSshUserModal = true
+                                            }.sheet(isPresented: $showSshUserModal) {
                                                 SshUserDialogView(devicesView:self, localPort:map.localPort)
                                             }
                                         }
-                                        Button("Delete", action: { mc!.removePortMap(map: map) })
+                                        Button("Delete") { [weak map] in
+                                            guard let map = map else { return }
+                                            mc.removePortMap(map: map)
+                                        }
                                     }.padding(.horizontal, 5).background(Color("MainItemColor")).cornerRadius(4).contextMenu() {
                                         if (map.usage == "HTTP") {
-                                            Button("HTTP", action: { openURL(url:"http://127.0.0.1:\(map.localPort)") })
+                                            Button("HTTP") { [weak map] in
+                                                guard let map = map else { return }
+                                                openURL(url:"http://127.0.0.1:\(map.localPort)")
+                                            }
                                         } else if (map.usage == "HTTPS") {
-                                            Button("HTTPS", action: { openURL(url:"https://127.0.0.1:\(map.localPort)") })
+                                            Button("HTTPS") { [weak map] in
+                                                guard let map = map else { return }
+                                                openURL(url:"https://127.0.0.1:\(map.localPort)")
+                                            }
                                         } else if (map.usage == "SSH") {
-                                            Button("SSH", action: { showSshUserModal = true; }).sheet(isPresented: $showSshUserModal) {
+                                            Button("SSH") {
+                                                showSshUserModal = true
+                                            }.sheet(isPresented: $showSshUserModal) {
                                                 SshUserDialogView(devicesView:self, localPort:map.localPort)
                                             }
                                         }
-                                        Button("Delete", action: { mc!.removePortMap(map: map) })
+                                        Button("Delete") { [weak map] in
+                                            guard let map = map else { return }
+                                            mc.removePortMap(map: map)
+                                        }
                                     }
                                 }
                             }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            Text("No mappings").foregroundColor(Color("MainTextColor")).frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                         HStack {
                             Button("Help", action: { showHelpModal = true }).sheet(
@@ -182,7 +220,10 @@ struct DevicesView: View {
             }
             HStack {
                 Spacer()
-                Button("Logout", action: logout).buttonStyle(BorderedButtonStyle()).padding()
+                Button("Logout", action: logout)
+                    .buttonStyle(BorderedButtonStyle())
+                    .foregroundColor(.white)
+                    .padding()
             }.background(Image("BottomBanner")).frame(width: 494, height: 41)
             .sheet(isPresented: $showAddMapModal) {
                 AppMapDialogView(devicesView:self, device: globalSelectedDevice, relay: false)

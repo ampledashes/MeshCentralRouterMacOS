@@ -36,8 +36,9 @@ struct AppMapDialogView: View {
     }
     
     func getFirstValidDevice() -> Device? {
-        for grp:DeviceGroup in mc!.deviceGroups {
-            for dev:Device in mc!.devices {
+        guard let mc = mc else { return nil }
+        for grp:DeviceGroup in mc.deviceGroups {
+            for dev:Device in mc.devices {
                 if ((dev.meshid == grp.id) && ((dev.conn & 1) != 0)) { return dev }
             }
         }
@@ -45,7 +46,8 @@ struct AppMapDialogView: View {
     }
     
     func checkDeviceGroupValid(grp:DeviceGroup) -> Bool {
-        for dev:Device in mc!.devices {
+        guard let mc = mc else { return false }
+        for dev:Device in mc.devices {
             if ((dev.meshid == grp.id) && ((dev.conn & 1) != 0)) { return true }
         }
         return false
@@ -71,24 +73,28 @@ struct AppMapDialogView: View {
                 HStack() {
                     Text("Device Group").frame(width: 100, alignment: .leading)
                     Spacer()
-                    Picker("", selection: $meshid) {
-                        ForEach(mc!.deviceGroups, id: \.id) { deviceGroup in
-                            if (checkDeviceGroupValid(grp: deviceGroup)) {
-                                Text(deviceGroup.name).tag(deviceGroup.id)
+                    if let mc = mc {
+                        Picker("", selection: $meshid) {
+                            ForEach(mc.deviceGroups, id: \.id) { deviceGroup in
+                                if (checkDeviceGroupValid(grp: deviceGroup)) {
+                                    Text(deviceGroup.name).tag(deviceGroup.id)
+                                }
                             }
-                        }
-                    }.labelsHidden().frame(width: 200)
+                        }.labelsHidden().frame(width: 200)
+                    }
                 }
                 HStack() {
                     Text("Device").frame(width: 100, alignment: .leading)
                     Spacer()
-                    Picker("", selection: $nodeid) {
-                        ForEach(mc!.devices, id: \.id) { device in
-                            if (checkDeviceValid(dev:device)) {
-                                Text(device.name).tag(device.id)
+                    if let mc = mc {
+                        Picker("", selection: $nodeid) {
+                            ForEach(mc.devices, id: \.id) { device in
+                                if (checkDeviceValid(dev:device)) {
+                                    Text(device.name).tag(device.id)
+                                }
                             }
-                        }
-                    }.labelsHidden().frame(width: 200)
+                        }.labelsHidden().frame(width: 200)
+                    }
                 }
                 HStack() {
                     Text("Protocol").frame(width: 100, alignment: .leading)
@@ -121,10 +127,19 @@ struct AppMapDialogView: View {
                 }
             }.padding()
             HStack() {
-                Button("OK", action: { devicesView!.showAddMapModal = false; devicesView!.showAddRelayMapModal = false; mc!.addPortMap(name:name, nodeid:nodeid, usage:usage, localPort:Int(localPortStr) ?? 0, remoteIp: (relay == true) ? remoteIp : nil ,remotePort:Int(remotePortStr) ?? 0) }).disabled(
+                Button("OK") {
+                    guard let mc = mc, let devicesView = devicesView else { return }
+                    devicesView.showAddMapModal = false
+                    devicesView.showAddRelayMapModal = false
+                    mc.addPortMap(name:name, nodeid:nodeid, usage:usage, localPort:Int(localPortStr) ?? 0, remoteIp: (relay == true) ? remoteIp : nil ,remotePort:Int(remotePortStr) ?? 0)
+                }.disabled(
                     !(((Int(localPortStr) ?? -1) >= 0) && ((Int(localPortStr) ?? -1) <= 65535) && ((Int(remotePortStr) ?? -1) > 0) && ((Int(remotePortStr) ?? -1) <= 65535) && (meshid != "") && (nodeid != "") && ((relay == false) || (remoteIp != "")))
                 )
-                Button("Cancel", action: { devicesView!.showAddMapModal = false; devicesView!.showAddRelayMapModal = false; })
+                Button("Cancel") {
+                    guard let devicesView = devicesView else { return }
+                    devicesView.showAddMapModal = false
+                    devicesView.showAddRelayMapModal = false
+                }
             }.padding([.horizontal, .bottom])
         }.background(Color("MainBackground")).foregroundColor(Color("MainTextColor")).shadow(radius: 20)
     }

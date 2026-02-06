@@ -19,17 +19,26 @@ struct SettingsDialogView: View {
     }
     
     var body: some View {
-        VStack() {
-            VStack(alignment: .leading) {
-                Toggle(isOn: $showOnlyOnlineDevices) { Text("Show only online devices") }
+        VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Display Options")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle(isOn: $showOnlyOnlineDevices) { 
+                    Text("Show only online devices") 
+                }
                 //Toggle(isOn: $bindLoopbackOnly) { Text("Bind only to loopback interface") }
             }.padding()
-            HStack() {
-                Button("OK", action: {
+            HStack(spacing: 10) {
+                Button("OK") {
                     changeSettings(showOnlyOnlineDevices:showOnlyOnlineDevices, bindLoopbackOnly:bindLoopbackOnly)
-                    devicesView!.showSettingsModal = false;
-                })
-                Button("Cancel", action: { devicesView!.showSettingsModal = false; })
+                    devicesView?.showSettingsModal = false
+                }
+                .buttonStyle(BorderedButtonStyle())
+                Button("Cancel") {
+                    devicesView?.showSettingsModal = false
+                }
+                .buttonStyle(BorderedButtonStyle())
             }.padding([.horizontal, .bottom])
         }.background(Color("MainBackground")).foregroundColor(Color("MainTextColor")).shadow(radius: 20)
     }

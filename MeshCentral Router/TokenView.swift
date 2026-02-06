@@ -64,8 +64,12 @@ struct TokenView: View {
                                     }
                             }
                         }
-                        Spacer().frame(height: 5)
-                        Text(loginStatus).frame( maxWidth: /*@START_MENU_TOKEN@*/.infinity/*@END_MENU_TOKEN@*/, alignment: .leading).foregroundColor(.purple)
+                        Spacer().frame(height: 8)
+                        Text(loginStatus)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundColor(.red)
+                            .font(.system(size: 12))
+                            .lineLimit(2)
                     }.frame(width: 210)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 Spacer().frame(width: 482, height: 36)
@@ -73,11 +77,20 @@ struct TokenView: View {
             HStack {
                 Spacer()
                 if (cancelEnabled) {
-                    Button("Cancel", action: logout).buttonStyle(BorderedButtonStyle()).padding()
+                    Button("Cancel", action: logout)
+                        .buttonStyle(BorderedButtonStyle())
+                        .foregroundColor(.white)
+                        .padding()
                 } else {
-                    Button("Back", action: performBackToLogin).buttonStyle(BorderedButtonStyle()).padding()
+                    Button("Back", action: performBackToLogin)
+                        .buttonStyle(BorderedButtonStyle())
+                        .foregroundColor(.white)
+                        .padding()
                 }
-                Button("Next", action: { performToken(parent:parent, view:self, token:self.tokenStr) }).buttonStyle(BorderedButtonStyle()).padding()
+                Button("Next", action: { performToken(parent:parent, view:self, token:self.tokenStr) })
+                    .buttonStyle(BorderedButtonStyle())
+                    .foregroundColor(.white)
+                    .padding()
                     .disabled(!(tokenStr.count > 0))
             }.background(Image("BottomBanner")).frame(width: 494, height: 41)
         }.frame(width: 494, height: 360)

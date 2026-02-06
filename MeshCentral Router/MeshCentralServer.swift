@@ -179,6 +179,7 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
     var authCookie:String? = nil
     var authRCookie:String? = nil
     var authCookieTimer:Timer? = nil
+    var keepaliveTimer:Timer? = nil
     
     public func foundDevice(nodeid:String) -> Device? {
         for dev in devices { if (dev.id == nodeid) { return dev } }
@@ -234,6 +235,9 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
         changeState(newState: 2)
         receive()
         self.send(str: "{\"action\":\"authcookie\"}")
+        
+        // Start keepalive timer to prevent WebSocket timeout
+        startKeepalive()
     }
     
     @objc func refreshCookie(timer: Timer)
@@ -249,6 +253,12 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
     private func disconnected() {
         changeState(newState: 0)
         
+        // Stop the keepalive timer
+        if (keepaliveTimer != nil) {
+            keepaliveTimer?.invalidate()
+            keepaliveTimer = nil
+        }
+        
         // Stop the auth cookie timer
         if (authCookieTimer != nil) {
             authCookieTimer?.invalidate()
@@ -259,17 +269,30 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
         while (portMaps.count > 0) { removePortMap(map:portMaps[0]) }
     }
     
-    private func ping() {
-        webSocketTask!.sendPing { error in
+    // Start keepalive timer to send periodic pings
+    private func startKeepalive() {
+        // Ensure timer is created on main thread with main run loop
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            // Send ping every 30 seconds to keep connection alive
+            self.keepaliveTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+                self?.sendKeepalivePing()
+            }
+            self.keepaliveTimer?.tolerance = 5.0
+            // Ensure timer is added to common run loop modes so it fires even during UI events
+            if let timer = self.keepaliveTimer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
+        }
+    }
+    
+    @objc private func sendKeepalivePing() {
+        guard let webSocketTask = webSocketTask else { return }
+        webSocketTask.sendPing { error in
             if let error = error {
-                print("Error when sending PING \(error)")
+                print("WebSocket keepalive ping failed: \(error)")
             } else {
-                print("Web Socket connection is alive")
-                /*
-                 DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
-                 self.ping()
-                 }
-                 */
+                print("WebSocket keepalive ping sent successfully")
             }
         }
     }
@@ -389,7 +412,9 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
                 
                 // Sort the device group list by name
                 xdeviceGroups.sort { $0.name < $1.name }
-                deviceGroups = xdeviceGroups
+                DispatchQueue.main.async {
+                    self.deviceGroups = xdeviceGroups
+                }
                 break;
             case "nodes":
                 // The current device list from the server
@@ -416,9 +441,13 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
                 xdevices.sort { $0.name < $1.name }
                 
                 // Fire event
-                devices = xdevices
-                if (onDevicesChanged != nil) { onDevicesChanged!() }
-                meshCentralServerChanger.update()
+                DispatchQueue.main.async {
+                    self.devices = xdevices
+                    if let onDevicesChanged = self.onDevicesChanged {
+                        onDevicesChanged()
+                    }
+                    meshCentralServerChanger.update()
+                }
                 break
             case "event":
                 // Process a server event
@@ -428,40 +457,44 @@ public class MeshCentralServer: NSObject, URLSessionWebSocketDelegate, Observabl
                 case "changenode":
                     // Process a change node event
                     let nodeid = event["nodeid"] as! String
-                    let dev = foundDevice(nodeid:nodeid)
-                    if (dev != nil) {
-                        let newnode = event["node"] as! [String : Any]
-                        
-                        // Update the device
-                        if (newnode["name"] != nil) { dev!.name = newnode["name"] as! String }
-                        dev!.desc = newnode["desc"] as! String?
-                        if (newnode["icon"] != nil) { dev!.icon = newnode["icon"] as! Int }
-                        if (newnode["meshid"] != nil) { dev!.meshid = newnode["meshid"] as! String }
-                        
-                        // Sort the device list by name
-                        devices.sort { $0.name < $1.name }
-                        
-                        // Fire event
-                        meshCentralServerChanger.update()
+                    DispatchQueue.main.async {
+                        let dev = self.foundDevice(nodeid:nodeid)
+                        if (dev != nil) {
+                            let newnode = event["node"] as! [String : Any]
+                            
+                            // Update the device
+                            if (newnode["name"] != nil) { dev!.name = newnode["name"] as! String }
+                            dev!.desc = newnode["desc"] as! String?
+                            if (newnode["icon"] != nil) { dev!.icon = newnode["icon"] as! Int }
+                            if (newnode["meshid"] != nil) { dev!.meshid = newnode["meshid"] as! String }
+                            
+                            // Sort the device list by name
+                            self.devices.sort { $0.name < $1.name }
+                            
+                            // Fire event
+                            meshCentralServerChanger.update()
+                        }
                     }
                     break
                 case "nodeconnect":
                     // Node connection state has changed
                     let nodeid = event["nodeid"] as! String
-                    let dev = foundDevice(nodeid:nodeid)
-                    if (dev != nil) {
-                        if (event["conn"] != nil) { dev!.conn = event["conn"] as! Int }
-                        if (event["pwr"] != nil) { dev!.pwr = event["pwr"] as! Int }
-                    
-                        // If a device disconnects, remove all it's port mappings for that device
-                        if ((dev!.conn & 1) == 0) {
-                            var portMapsToRemove = [PortMap]()
-                            for map:PortMap in portMaps { if (map.device.id == nodeid) { portMapsToRemove.append(map) } }
-                            for map:PortMap in portMapsToRemove { removePortMap(map: map) }
-                        }
+                    DispatchQueue.main.async {
+                        let dev = self.foundDevice(nodeid:nodeid)
+                        if (dev != nil) {
+                            if (event["conn"] != nil) { dev!.conn = event["conn"] as! Int }
+                            if (event["pwr"] != nil) { dev!.pwr = event["pwr"] as! Int }
                         
-                        // Fire event
-                        meshCentralServerChanger.update()
+                            // If a device disconnects, remove all it's port mappings for that device
+                            if ((dev!.conn & 1) == 0) {
+                                var portMapsToRemove = [PortMap]()
+                                for map:PortMap in self.portMaps { if (map.device.id == nodeid) { portMapsToRemove.append(map) } }
+                                for map:PortMap in portMapsToRemove { self.removePortMap(map: map) }
+                            }
+                            
+                            // Fire event
+                            meshCentralServerChanger.update()
+                        }
                     }
                     break;
                 default:

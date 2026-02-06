@@ -98,7 +98,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         window.isReleasedWhenClosed = false
         window.center()
-        window.setFrameAutosaveName("Main Window")
+        // Disable automatic window restoration to prevent restoration warnings
+        window.restorationClass = nil
+        window.identifier = nil
         window.contentView = NSHostingView(rootView: parentView)
         window.makeKeyAndOrderFront(nil)
         
@@ -108,6 +110,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
+    }
+    
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        return true
+    }
+    
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return true
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -180,7 +190,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @IBAction func SaveAsFileMenuAction(_ sender: NSMenuItem) {
-        if ((parentView == nil) || (parentView!.panel != 3) || (mc == nil)) { return }
+        guard let parentView = parentView, parentView.panel == 3, let mc = mc else { return }
         let dialog = NSSavePanel();
         dialog.title = "Save MeshCentral Router File";
         dialog.showsResizeIndicator = true;
@@ -199,7 +209,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     if (trustedTlsServerCertHash != nil) { json += "  \"certhash\":\"\(trustedTlsServerCertHash!)\",\r\n" }
                     json += "  \"mappings\":[\r\n"
                     var firstMap = true
-                    for map:PortMap in mc!.portMaps {
+                    for map:PortMap in mc.portMaps {
                         if (firstMap == true) { json += "    {\r\n"; firstMap = false } else { json += ",\r\n    {\r\n" }
                         if (map.name != "") { json += "      \"name\":\"\(jsonEscape(str: map.name))\",\r\n" }
                         json += "      \"meshId\":\"\(jsonEscape(str: map.device.meshid))\",\r\n"
@@ -332,7 +342,7 @@ func setGlobalViews(parent:ContentView, view:LoginView) {
 func devicesScreenDisplayed(devicesView:DevicesView) {
     globalDevicesView = devicesView
     onDevicesChanged()
-    if (mc != nil) { mc!.sendUpdateRequest() }
+    mc?.sendUpdateRequest()
 }
 
 func performAutoLogin(u:URL) {
@@ -367,9 +377,10 @@ func performAutoLogin(u:URL) {
     
     // Connect to the server
     mc = MeshCentralServer.init(url: globalAuthUrl!, rurl: rurl, user: "", pass: "", token: "", trustedCertHash: trustedTlsServerCertHash)
-    mc!.onStateChange = onMeshCentralStateChanged
-    mc!.on2faCookie = on2faCookie
-    mc!.onDevicesChanged = onDevicesChanged
+    guard let mc = mc else { return }
+    mc.onStateChange = onMeshCentralStateChanged
+    mc.on2faCookie = on2faCookie
+    mc.onDevicesChanged = onDevicesChanged
     
     // Disable the login button
     tokenAttemptCount = 0
@@ -380,15 +391,17 @@ func performAutoLogin(u:URL) {
 
 // Called when the list of devices has changed
 func onDevicesChanged() {
-    if ((globalAutoMaps != nil) && (globalAutoMaps!.count > 0) && (globalDevicesView != nil) && (mc != nil)) {
-        // See if we have any devices we need to add a port map to
-        for automap in globalAutoMaps! {
-            for device in mc!.devices {
-                if ((automap.toDelete == false) && (automap.nodeId == device.id)) {
-                    mc!.addPortMap(name: automap.name, nodeid: automap.nodeId, usage: automap.getUsage(), localPort: automap.localPort, remoteIp: automap.remoteIp, remotePort: automap.remotePort)
-                    automap.toDelete = true
-                    globalDevicesView!.selectedTab = DevicesView.Tab.mappings
-                }
+    guard let globalAutoMaps = globalAutoMaps, globalAutoMaps.count > 0,
+          let globalDevicesView = globalDevicesView,
+          let mc = mc else { return }
+    
+    // See if we have any devices we need to add a port map to
+    for automap in globalAutoMaps {
+        for device in mc.devices {
+            if ((automap.toDelete == false) && (automap.nodeId == device.id)) {
+                mc.addPortMap(name: automap.name, nodeid: automap.nodeId, usage: automap.getUsage(), localPort: automap.localPort, remoteIp: automap.remoteIp, remotePort: automap.remotePort)
+                automap.toDelete = true
+                globalDevicesView.selectedTab = DevicesView.Tab.mappings
             }
         }
     }
@@ -429,9 +442,10 @@ func performLogin(parent:ContentView?, view:LoginView) {
     
     // Connect to the server
     mc = MeshCentralServer.init(url: url, rurl: rurl, user: view.serverUser, pass: view.serverPass, token: token, trustedCertHash: trustedTlsServerCertHash)
-    mc!.onStateChange = onMeshCentralStateChanged
-    mc!.on2faCookie = on2faCookie
-    mc!.onDevicesChanged = onDevicesChanged
+    guard let mc = mc else { return }
+    mc.onStateChange = onMeshCentralStateChanged
+    mc.on2faCookie = on2faCookie
+    mc.onDevicesChanged = onDevicesChanged
 }
 
 // If we get a 2FA cookie from the server, save it
@@ -466,18 +480,22 @@ func performToken(parent:ContentView?, view:TokenView, token:String) {
     // Connect to the server
     if ((token != "") && (token != "**sms**") && (token != "**email**")) { tokenAttemptCount += 1; } else { tokenAttemptCount = 0 }
     mc = MeshCentralServer.init(url: url, rurl: rurl, user: parentView!.serverUser, pass: parentView!.serverPass, token: token, trustedCertHash: trustedTlsServerCertHash)
-    mc!.onStateChange = onMeshCentralStateChanged;
-    mc!.on2faCookie = on2faCookie
-    mc!.onDevicesChanged = onDevicesChanged
+    guard let mc = mc else { return }
+    mc.onStateChange = onMeshCentralStateChanged;
+    mc.on2faCookie = on2faCookie
+    mc.onDevicesChanged = onDevicesChanged
 }
 
 func performBackToLogin() {
-    if (mc != nil) { mc!.close() }
+    mc?.close()
     if (parentView != nil) { parentView!.panel = 0 }
 }
 
 func loginScreenDisplayed(loginView:LoginView) {
-    if (mc != nil) { mc!.close(); mc = nil }
+    if let mc = mc {
+        mc.close()
+    }
+    mc = nil
 }
 
 func performIgnoreCert(remember:Bool) {
@@ -494,25 +512,25 @@ func onMeshCentralStateChanged(state: Int, cause: String?) {
     switch (state) {
     case 0:
         //print(" Cause: \(mc!.closeCause ?? "NIL"), Msg: \(mc!.closeMsg ?? "NIL"), Types: \(mc!.tokenTypes), Days: \(mc!.twofaCookieDays)")
-        if ((mc != nil) && (mc!.closeCause == "noauth")) {
-            if (mc!.closeMsg == "tokenrequired") {
-                if ((mc!.tokenSent & 1) != 0) { loginStatus = "Email sent"; parentView!.tokenTypes = 0 }
-                else if ((mc!.tokenSent & 2) != 0) { loginStatus = "SMS sent"; parentView!.tokenTypes = 0 }
-                else if (tokenAttemptCount > 0) { loginStatus = "Invalid token"; parentView!.tokenTypes = mc!.tokenTypes }
-                else { loginStatus = ""; parentView!.tokenTypes = mc!.tokenTypes }
-                parentView!.cookieDays = mc!.twofaCookieDays
+        if let mc = mc, mc.closeCause == "noauth" {
+            if (mc.closeMsg == "tokenrequired") {
+                if ((mc.tokenSent & 1) != 0) { loginStatus = "Email sent"; parentView!.tokenTypes = 0 }
+                else if ((mc.tokenSent & 2) != 0) { loginStatus = "SMS sent"; parentView!.tokenTypes = 0 }
+                else if (tokenAttemptCount > 0) { loginStatus = "Invalid token"; parentView!.tokenTypes = mc.tokenTypes }
+                else { loginStatus = ""; parentView!.tokenTypes = mc.tokenTypes }
+                parentView!.cookieDays = mc.twofaCookieDays
                 gotoPanel = 1
             } else {
                 loginStatus = "Invalid username/password"
                 gotoPanel = 0
             }
-        } else if ((mc != nil) && (mc!.closeCause == "certCheck") && (mc!.trustedTlsServerCertHash == mc!.failedTlsServerCertHash)) {
+        } else if let mc = mc, mc.closeCause == "certCheck", mc.trustedTlsServerCertHash == mc.failedTlsServerCertHash {
             trustedTlsServerCertHash = nil
             loginStatus = "Certificate error"
             gotoPanel = 0
-        } else if ((mc != nil) && (mc!.closeCause == "invalidCert")) {
-            parentView!.certificateData = mc!.failedTlsServerCertInfo ?? ""
-            failedTlsServerCertHash = mc!.failedTlsServerCertHash
+        } else if let mc = mc, mc.closeCause == "invalidCert" {
+            parentView!.certificateData = mc.failedTlsServerCertInfo ?? ""
+            failedTlsServerCertHash = mc.failedTlsServerCertHash
             gotoPanel = 2
         } else {
             trustedTlsServerCertHash = nil
@@ -526,7 +544,7 @@ func onMeshCentralStateChanged(state: Int, cause: String?) {
         gotoPanel = 3
         
         // If we want to remember this device, ask for the 2FA cookie
-        if (rememberDevice == true) { mc!.send(str: "{\"action\":\"twoFactorCookie\"}") }
+        if (rememberDevice == true) { mc?.send(str: "{\"action\":\"twoFactorCookie\"}") }
         
         break;
     default:
@@ -547,7 +565,7 @@ func changeSettings(showOnlyOnlineDevices:Bool, bindLoopbackOnly:Bool) {
     globalBindLoopbackOnly = bindLoopbackOnly
     settings.setValue(showOnlyOnlineDevices, forKey: "showOnlyOnlineDevices")
     settings.setValue(bindLoopbackOnly, forKey: "bindLoopbackOnly")
-    if (mc != nil) { mc!.forceUpdate() }
+    mc?.forceUpdate()
 }
 
 func logout() {

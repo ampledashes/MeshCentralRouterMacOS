@@ -40,8 +40,12 @@ struct LoginView: View {
                         Text("Password").frame( maxWidth: /*@START_MENU_TOKEN@*/.infinity/*@END_MENU_TOKEN@*/, alignment: .leading)
                         SecureField("", text: $serverPass).foregroundColor(.black).background(fieldsEnabled ? Color.white : Color("MainBackground")).border(Color.black)
                             .disabled(!fieldsEnabled)
-                        Spacer().frame(height: 5)
-                        Text(loginStatus).frame( maxWidth: /*@START_MENU_TOKEN@*/.infinity/*@END_MENU_TOKEN@*/, alignment: .leading).foregroundColor(.purple)
+                        Spacer().frame(height: 8)
+                        Text(loginStatus)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundColor(.red)
+                            .font(.system(size: 12))
+                            .lineLimit(2)
                     }.frame(width: 210)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 HStack {
@@ -52,8 +56,16 @@ struct LoginView: View {
             }.background(Color("MainBackground")).foregroundColor(Color("MainTextColor"))
             HStack {
                 Spacer()
-                if (cancelEnabled) { Button("Cancel", action: logout).buttonStyle(BorderedButtonStyle()).padding() }
-                Button("Login", action: { performLogin(parent:parent, view:self) }).buttonStyle(BorderedButtonStyle()).padding()
+                if (cancelEnabled) { 
+                    Button("Cancel", action: logout)
+                        .buttonStyle(BorderedButtonStyle())
+                        .foregroundColor(.white)
+                        .padding() 
+                }
+                Button("Login", action: { performLogin(parent:parent, view:self) })
+                    .buttonStyle(BorderedButtonStyle())
+                    .foregroundColor(.white)
+                    .padding()
                     .disabled(!(((serverName.count > 0) && (serverUser.count > 0) && (serverPass.count > 0)) && fieldsEnabled))
             }.background(Image("BottomBanner")).frame(width: 494, height: 41)
         }
