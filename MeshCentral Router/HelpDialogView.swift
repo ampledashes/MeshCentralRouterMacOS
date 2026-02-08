@@ -16,7 +16,7 @@ struct HelpDialogView: View {
     
     var body: some View {
         VStack() {
-            Text("A port map will forward a port on this machine to a port on a remote machine. A relay port map will got thru a remote machine to a specified IP and port.").frame(width: 288, height: 64).padding(8)
+            Text("A port map will forward a port on this machine to a port on a remote machine. A relay port map will go thru a remote machine to a specified IP and port.").frame(width: 288, height: 64).padding(8)
             Image("Help")
             HStack() {
                 Button("Close", action: {
